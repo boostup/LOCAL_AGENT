@@ -1,8 +1,10 @@
 import asyncio
 import os
+import re
 from datetime import datetime
 
 from telegram import Update
+from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes, JobQueue, MessageHandler, filters
 
 from main import OllamaClient
@@ -129,7 +131,39 @@ class TelegramBot:
 
     async def reply(self, update: Update, text: str | None) -> None:
         if update.message:
-            await update.message.reply_text(text or "No data available.")
+            message_text = text or "No data available."
+            formatted_text = self._markdown_to_html(message_text)
+            await update.message.reply_text(formatted_text, parse_mode=ParseMode.HTML)
+
+    @staticmethod
+    def _markdown_to_html(text: str) -> str:
+        """Convert markdown code blocks and inline code to HTML for Telegram."""
+        # First escape HTML characters in the entire text
+        text = TelegramBot._escape_html(text)
+        # Convert triple backtick code blocks to <pre><code> (must unescape code content)
+        def replace_code_block(match):
+            code_content = match.group(2)
+            # Unescape HTML in code content since <>& should display literally in code
+            return f"<pre><code>{TelegramBot._unescape_html(code_content)}</code></pre>"
+        
+        text = re.sub(r"```(\w*\n)?(.*?)```", replace_code_block, text, flags=re.DOTALL)
+        # Convert single backtick inline code to <code> (unescape code content)
+        def replace_inline_code(match):
+            code_content = match.group(1)
+            return f"<code>{TelegramBot._unescape_html(code_content)}</code>"
+        
+        text = re.sub(r"`([^`]+)`", replace_inline_code, text)
+        return text
+
+    @staticmethod
+    def _escape_html(text: str) -> str:
+        """Escape HTML special characters."""
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    @staticmethod
+    def _unescape_html(text: str) -> str:
+        """Unescape HTML in code content (for code blocks, < > & should display literally)."""
+        return text.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
 
     def run(self) -> None:
         self.job_queue.start()
