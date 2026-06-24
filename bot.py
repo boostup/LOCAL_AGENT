@@ -37,51 +37,82 @@ class TelegramBot:
         self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        user = update.effective_user
+        self.skill_registry.record_message(user.id if user else None, user.username if user else None, update.effective_chat.id if update.effective_chat else None, "/start", "Local AI stack is online. Use /help for commands.")
         await self.reply(update, "Local AI stack is online. Use /help for commands.")
 
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        await self.reply(
-            update,
-            "Commands:\n"
-            "/daily - daily report\n"
-            "/weather [city] - hourly weather\n"
-            "/transit [from to destination] - direct departures\n"
-            "/defi - BTC/EUR snapshot\n"
-            "/gaming - gaming release digest\n"
-            "/feedback [text] - record feedback\n"
-            "Plain messages are routed to skills first, then local Ollama.",
-        )
+        user = update.effective_user
+        text = "Commands:\n" \
+               "/daily - daily report\n" \
+               "/weather [city] - hourly weather\n" \
+               "/transit [from to destination] - direct departures\n" \
+               "/defi - BTC/EUR snapshot\n" \
+               "/gaming - gaming release digest\n" \
+               "/feedback [text] - record feedback\n" \
+               "Plain messages are routed to skills first, then local Ollama."
+        self.skill_registry.record_message(user.id if user else None, user.username if user else None, update.effective_chat.id if update.effective_chat else None, "/help", text)
+        await self.reply(update, text)
 
     async def weather(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         query = " ".join(context.args) or DEFAULT_CITY
-        await self.reply(update, await self.skill_registry.get_skill_response("weather", query))
+        user = update.effective_user
+        response = await self.skill_registry.get_skill_response("weather", query)
+        self.skill_registry.record_message(user.id if user else None, user.username if user else None, update.effective_chat.id if update.effective_chat else None, f"/weather {query}", response)
+        await self.reply(update, response)
 
     async def transit(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         query = " ".join(context.args) or DEFAULT_TRANSIT_ROUTE
-        await self.reply(update, await self.skill_registry.get_skill_response("transit", query))
+        user = update.effective_user
+        response = await self.skill_registry.get_skill_response("transit", query)
+        self.skill_registry.record_message(user.id if user else None, user.username if user else None, update.effective_chat.id if update.effective_chat else None, f"/transit {query}", response)
+        await self.reply(update, response)
 
     async def defi(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        await self.reply(update, await self.skill_registry.get_skill_response("defi", "btc eur"))
+        user = update.effective_user
+        response = await self.skill_registry.get_skill_response("defi", "btc eur")
+        self.skill_registry.record_message(user.id if user else None, user.username if user else None, update.effective_chat.id if update.effective_chat else None, "/defi", response)
+        await self.reply(update, response)
 
     async def gaming(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        await self.reply(update, await self.skill_registry.get_skill_response("gaming", " ".join(context.args)))
+        user = update.effective_user
+        query = " ".join(context.args)
+        response = await self.skill_registry.get_skill_response("gaming", query)
+        self.skill_registry.record_message(user.id if user else None, user.username if user else None, update.effective_chat.id if update.effective_chat else None, f"/gaming {query}", response)
+        await self.reply(update, response)
 
     async def feedback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        text = " ".join(context.args)
-        self.skill_registry.record_feedback(text or "empty feedback")
+        text = " ".join(context.args) or "no text"
+        user = update.effective_user
+        self.skill_registry.record_feedback(text)
+        self.skill_registry.record_message(user.id if user else None, user.username if user else None, update.effective_chat.id if update.effective_chat else None, f"/feedback {text}", "Feedback recorded.")
         await self.reply(update, "Feedback recorded.")
 
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         message = update.message.text if update.message else ""
+        user = update.effective_user
+        chat_id = update.effective_chat.id if update.effective_chat else None
+        user_id = user.id if user else None
+        username = user.username if user else None
+        
+        print(f"[TELEGRAM MESSAGE] user={user.username or user.id} chat_id={chat_id} text={repr(message)}")
+        
         skill_response = await self.skill_registry.process_message(message)
         if skill_response:
+            self.skill_registry.record_message(user_id, username, chat_id, message, skill_response)
             await self.reply(update, skill_response)
             return
+        
         response = await asyncio.to_thread(self.ollama_client.generate, message)
-        await self.reply(update, response or "No response from local model.")
+        ollama_response = response or "No response from local model."
+        self.skill_registry.record_message(user_id, username, chat_id, message, ollama_response)
+        await self.reply(update, ollama_response)
 
     async def daily_report(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        await self.reply(update, await self.build_daily_report())
+        user = update.effective_user
+        report = await self.build_daily_report()
+        self.skill_registry.record_message(user.id if user else None, user.username if user else None, update.effective_chat.id if update.effective_chat else None, "/daily", report)
+        await self.reply(update, report)
 
     async def build_daily_report(self) -> str:
         sections = [f"Daily report - {datetime.now().strftime('%Y-%m-%d %H:%M')}"]

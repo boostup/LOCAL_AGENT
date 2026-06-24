@@ -10,15 +10,20 @@ class OllamaClient:
         self.client = ollama.Client(host=host or os.environ.get("OLLAMA_HOST"))
 
     def generate(self, prompt: str, temperature: float = 0.7) -> str:
+        print(f"[OLLAMA REQUEST] model={self.model} prompt={repr(prompt)[:200]}")
         try:
             response: dict[str, Any] = self.client.chat(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 options={"temperature": temperature},
             )
-            return response.get("message", {}).get("content", "")
+            content = response.get("message", {}).get("content", "")
+            print(f"[OLLAMA RESPONSE] model={self.model} response={repr(content)[:200]}")
+            return content
         except Exception as exc:
-            return f"Ollama is unavailable: {exc}"
+            error_msg = f"Ollama is unavailable: {exc}"
+            print(f"[OLLAMA ERROR] {error_msg}")
+            return error_msg
 
 
 if __name__ == "__main__":

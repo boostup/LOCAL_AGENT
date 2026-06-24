@@ -42,3 +42,15 @@ class SkillRegistry:
         with sqlite3.connect(base.DB_PATH) as conn:
             conn.execute("create table if not exists feedback (id integer primary key autoincrement, text text not null, created_at real not null)")
             conn.execute("insert into feedback (text, created_at) values (?, ?)", (text, time.time()))
+
+    def record_message(self, user_id: int, username: str | None, chat_id: int, text: str, skill_response: str | None) -> None:
+        with sqlite3.connect(base.DB_PATH) as conn:
+            conn.execute(
+                "create table if not exists telegram_messages "
+                "(id integer primary key autoincrement, user_id integer, username text, chat_id integer not null, "
+                "text text not null, skill_response text, created_at real not null)"
+            )
+            conn.execute(
+                "insert into telegram_messages (user_id, username, chat_id, text, skill_response, created_at) values (?, ?, ?, ?, ?, ?)",
+                (user_id, username, chat_id, text, skill_response, time.time()),
+            )
