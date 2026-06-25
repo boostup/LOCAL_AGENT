@@ -6,7 +6,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.constants import ParseMode
-from telegram.ext import Application, CommandHandler, ContextTypes, JobQueue, MessageHandler, filters
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 from main import OllamaClient
 from skills.registry import SkillRegistry
@@ -26,8 +26,6 @@ class TelegramBot:
         self.application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
         self.ollama_client = OllamaClient()
         self.skill_registry = SkillRegistry()
-        self.job_queue = JobQueue()
-        self.job_queue.set_application(self.application)
         self.register_handlers()
 
     def register_handlers(self) -> None:
@@ -215,7 +213,6 @@ class TelegramBot:
         return text.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
 
     def run(self) -> None:
-        self.job_queue.start()
         self.application.run_polling()
 
 
