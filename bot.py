@@ -141,21 +141,67 @@ class TelegramBot:
     @staticmethod
     def _markdown_to_html(text: str) -> str:
         """Convert markdown code blocks and inline code to HTML for Telegram."""
-        # First escape HTML characters in the entire text
-        text = TelegramBot._escape_html(text)
-        # Convert triple backtick code blocks to <pre><code> (must unescape code content)
-        def replace_code_block(match):
-            code_content = match.group(2)
-            # Unescape HTML in code content since <>& should display literally in code
-            return f"<pre><code>{TelegramBot._unescape_html(code_content)}</code></pre>"
+        code_blocks = []
+        inline_codes = []
         
-        text = re.sub(r"```(\w*\n)?(.*?)```", replace_code_block, text, flags=re.DOTALL)
-        # Convert single backtick inline code to <code> (unescape code content)
+        result = []
+        i = 0
+        while i < len(text):
+            if text[i:i+3] == '```':
+                newline_pos = text.find('\n', i + 3)
+                if newline_pos != -1:
+                    start = newline_pos + 1
+                else:
+                    start = i + 3
+                depth = 1
+                j = start
+                while j < len(text):
+                    if text[j:j+3] == '```':
+                        k = j + 3
+                        while k < len(text) and text[k] == ' ':
+                            k += 1
+                        has_lang = False
+                        while k < len(text) and text[k].isalnum():
+                            k += 1
+                            has_lang = True
+                        is_opening = has_lang and k < len(text) and text[k] == '\n'
+                        
+                        if is_opening:
+                            depth += 1
+                        else:
+                            depth -= 1
+                            if depth == 0:
+                                code_blocks.append(text[start:j])
+                                result.append(f"%%CODE_BLOCK_{len(code_blocks)-1}%%")
+                                i = j + 3
+                                break
+                    j += 1
+                else:
+                    code_blocks.append(text[start:])
+                    result.append(f"%%CODE_BLOCK_{len(code_blocks)-1}%%")
+                    i = len(text)
+            else:
+                result.append(text[i])
+                i += 1
+        
+        text = ''.join(result)
+        
         def replace_inline_code(match):
-            code_content = match.group(1)
-            return f"<code>{TelegramBot._unescape_html(code_content)}</code>"
+            inline_codes.append(match.group(1))
+            return f"%%INLINE_CODE_{len(inline_codes)-1}%%"
         
         text = re.sub(r"`([^`]+)`", replace_inline_code, text)
+        text = TelegramBot._escape_html(text)
+        text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
+        text = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<i>\1</i>", text)
+        text = re.sub(r"^(#{1,6})\s+(.+)$", r"<b>\2</b>", text, flags=re.MULTILINE)
+        
+        for idx, code in enumerate(inline_codes):
+            text = text.replace(f"%%INLINE_CODE_{idx}%%", f"<code>{TelegramBot._unescape_html(code)}</code>")
+        
+        for idx, code in enumerate(code_blocks):
+            text = text.replace(f"%%CODE_BLOCK_{idx}%%", f"<pre><code>{TelegramBot._unescape_html(code)}</code></pre>")
+        
         return text
 
     @staticmethod
