@@ -3,12 +3,15 @@ import os
 import re
 from datetime import datetime
 
+from dotenv import load_dotenv
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes, JobQueue, MessageHandler, filters
 
 from main import OllamaClient
 from skills.registry import SkillRegistry
+
+load_dotenv()
 
 
 DEFAULT_CITY = os.environ.get("DEFAULT_CITY", "Saint-Germain-des-Fossés")
