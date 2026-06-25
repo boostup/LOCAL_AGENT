@@ -6,6 +6,7 @@
 - python bot.py
 
 # Next features
+- losing memory and context in follow-up requests - need follow-up
 - extract text?
 - get agent access to internet when required 
 - read text received on Telegram at loud?
